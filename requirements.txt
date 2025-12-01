@@ -18,6 +18,10 @@ picologging
 pillow
 PyPDF2
 pytesseract
+pytest
+pytest-asyncio
+pytest-cov
+pytest-mock
 python-decouple
 ruff
 tenacity

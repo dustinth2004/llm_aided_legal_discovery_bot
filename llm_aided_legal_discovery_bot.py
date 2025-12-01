@@ -38,14 +38,31 @@ from pdf2image import convert_from_path
 import pytesseract
 from PIL import Image
 import cv2
-import pypff
-from llama_cpp import Llama, LlamaGrammar
+
+# Optional dependencies for specific features
+try:
+    import pypff
+    HAS_PYPFF = True
+except ImportError:
+    HAS_PYPFF = False
+
+try:
+    from llama_cpp import Llama, LlamaGrammar
+    HAS_LLAMA_CPP = True
+except ImportError:
+    HAS_LLAMA_CPP = False
+
 import tiktoken
 from filelock import FileLock, Timeout
 from transformers import AutoTokenizer
 from openai import AsyncOpenAI, APIError, RateLimitError
 from anthropic import AsyncAnthropic
-from enron_sample_data_collector_script import main as enron_collector_main
+
+try:
+    from enron_sample_data_collector_script import main as enron_collector_main
+    HAS_ENRON_COLLECTOR = True
+except ImportError:
+    HAS_ENRON_COLLECTOR = False
 
 try:
     import nvgpu
@@ -316,13 +333,16 @@ async def process_extracted_enron_emails(maildir_path: str, converted_source_dir
                 markdown_content += f"# Email {index} of {len(emails)} from {sender} in {subfolder}\n\n"
                 markdown_content += f"**Unique Email Identifier:** {email_data['unique_identifier']}\n"
                 markdown_content += f"**From:** {email_data['headers']['From']['name']} <{email_data['headers']['From']['email']}>\n"
-                markdown_content += f"**To:** {', '.join([f'{r['name']} <{r['email']}>' for r in email_data['headers']['To']])}\n"
+                to_recipients = ', '.join([f"{r['name']} <{r['email']}>" for r in email_data['headers']['To']])
+                markdown_content += f"**To:** {to_recipients}\n"
                 markdown_content += f"**Subject:** {email_data['headers']['Subject']}\n"
                 markdown_content += f"**Date:** {email_data['headers']['Date']}\n"
                 if email_data['headers']['Cc']:
-                    markdown_content += f"**Cc:** {', '.join([f'{r['name']} <{r['email']}>' for r in email_data['headers']['Cc']])}\n"
+                    cc_recipients = ', '.join([f"{r['name']} <{r['email']}>" for r in email_data['headers']['Cc']])
+                    markdown_content += f"**Cc:** {cc_recipients}\n"
                 if email_data['headers']['Bcc']:
-                    markdown_content += f"**Bcc:** {', '.join([f'{r['name']} <{r['email']}>' for r in email_data['headers']['Bcc']])}\n"
+                    bcc_recipients = ', '.join([f"{r['name']} <{r['email']}>" for r in email_data['headers']['Bcc']])
+                    markdown_content += f"**Bcc:** {bcc_recipients}\n"
                 markdown_content += f"**X-Folder:** {email_data['headers']['X-Folder']}\n"
                 markdown_content += f"**X-Origin:** {email_data['headers']['X-Origin']}\n"
                 markdown_content += f"**X-FileName:** {email_data['headers']['X-FileName']}\n\n"
@@ -1182,7 +1202,8 @@ async def generate_completion_from_claude(prompt: str, max_tokens: int = CLAUDE_
                 output_text = message.content[0].text
                 logging.info(f"Total input tokens: {message.usage.input_tokens:,}")
                 logging.info(f"Total output tokens: {message.usage.output_tokens:,}")
-                logging.info(f"Generated output (abbreviated): {' '.join(output_text[:150].replace('\\r', '').replace('\\n', '').split())}...")
+                abbreviated_output = ' '.join(output_text[:150].replace('\r', '').replace('\n', '').split())
+                logging.info(f"Generated output (abbreviated): {abbreviated_output}...")
                 return output_text
         except Exception as e:
             logging.error(f"An error occurred while requesting from Claude API: {e}")
@@ -1213,7 +1234,8 @@ async def generate_completion_from_openai(prompt: str, max_tokens: int = 16384) 
         output_text = response.choices[0].message.content
         if use_verbose_openai_logging:
             logging.info(f"Total tokens: {response.usage.total_tokens:,}")
-            logging.info(f"Generated output (abbreviated): {' '.join(output_text[:150].replace('\\r', '').replace('\\n', '').split())}...")
+            abbreviated_output = ' '.join(output_text[:150].replace('\r', '').replace('\n', '').split())
+            logging.info(f"Generated output (abbreviated): {abbreviated_output}...")
         return output_text
     except (RateLimitError, APIError) as e:
         logging.error(f"OpenAI API error: {str(e)}")
@@ -1775,11 +1797,14 @@ async def process_pst_file(file_path: str, converted_source_dir: str) -> int:
                 markdown_content += f"# Email {index} of {len(emails[:MAX_EMAILS_PER_BUNDLE])} from {email['sender']['name']} <{email['sender']['email']}>\n\n"
                 markdown_content += f"**Unique Email Identifier:** {email['unique_identifier']}\n"
                 markdown_content += f"**From:** {email['sender']['name']} <{email['sender']['email']}>\n"
-                markdown_content += f"**To:** {', '.join([f'{r['name']} <{r['email']}>' for r in email['to']])}\n"
+                to_recipients = ', '.join([f"{r['name']} <{r['email']}>" for r in email['to']])
+                markdown_content += f"**To:** {to_recipients}\n"
                 if email['cc']:
-                    markdown_content += f"**Cc:** {', '.join([f'{r['name']} <{r['email']}>' for r in email['cc']])}\n"
+                    cc_recipients = ', '.join([f"{r['name']} <{r['email']}>" for r in email['cc']])
+                    markdown_content += f"**Cc:** {cc_recipients}\n"
                 if email['bcc']:
-                    markdown_content += f"**Bcc:** {', '.join([f'{r['name']} <{r['email']}>' for r in email['bcc']])}\n"
+                    bcc_recipients = ', '.join([f"{r['name']} <{r['email']}>" for r in email['bcc']])
+                    markdown_content += f"**Bcc:** {bcc_recipients}\n"
                 markdown_content += f"**Subject:** {email['subject']}\n"
                 markdown_content += f"**Date:** {email['date']}\n\n"
                 markdown_content += f"**Body:**\n\n{email['body']}\n\n"
